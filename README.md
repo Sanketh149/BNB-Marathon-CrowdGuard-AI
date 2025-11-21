@@ -1,4 +1,4 @@
-<img width="2730" height="1176" alt="Diagram 1" src="https://github.com/user-attachments/assets/756eead0-4af8-41b3-a933-d379ce6cc45b" /># 🛡️ CrowdGuard: AI-Powered Crowd Management and Early Warning System
+# 🛡️ CrowdGuard: AI-Powered Crowd Management and Early Warning System
 
 ## 🚀 Overview
 
