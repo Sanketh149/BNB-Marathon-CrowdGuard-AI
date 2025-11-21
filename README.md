@@ -44,41 +44,41 @@ The intelligence of CrowdGuard lies in its coordinated multi-agent system, trigg
 ## 📁 Project Structure
 
 CrowdGuard/
-├── frontend/ # 🌐 React Frontend Service (Cloud Run)
-│ ├── dist/ # Compiled production assets
-│ ├── node_modules/
-│ ├── public/
-│ ├── src/ # Source code (React/TypeScript)
-│ │ └── ...
-│ ├── Dockerfile # Frontend container configuration
-│ ├── package.json # Node dependencies
-│ ├── vite.config.ts # Frontend build configuration
-│ └── ... (other config files)
-|
-├── ml-module/ # 🧠 Video Processing / ML Backend Service (Cloud Run)
-│ ├── analytics/ # Logic for generating crowd stats (post-detection)
-│ ├── detection/ # Core ML model inference and object detection
-│ ├── models/ # Stored model weights/artifacts
-│ ├── processing/ # Video decoding/pre-processing logic
-│ ├── temp/
-│ ├── config.py # ML-specific configuration
-│ ├── Dockerfile # ML service container configuration
-│ ├── download_model.py # Script to fetch models during build/startup
-│ ├── main.py # FastAPI entry point for ML processing
-│ └── requirements.txt # Python dependencies (incl. FastAPI, ML frameworks)
-|
-├── all-my-agents/ # 🤖 Multi-Agent Orchestration Service (Cloud Run)
-│ ├── .venv/
-│ ├── orchestrator_agent/ # Core multi-agent logic (Agent Development Kit equivalent)
-│ │ ├── news_agent.py # 📰 Fetches external news/context
-│ │ ├── ml_analyzer_agent.py # 📊 Processes ML stats from GCS
-│ │ ├── predictor_agent.py # 🔮 Combines data for prediction
-│ │ └── email_agent.py # 📧 Drafts and sends alerts via Gemini
-│ ├── .env # Environment variables for agents
-│ ├── Dockerfile # Agent service container configuration
-│ ├── main.py # FastAPI/Uvicorn entry point for agents
-│ └── requirements.txt # Python dependencies (incl. Gemini SDK, agent framework)
-|
+├── frontend/                    # 🌐 React Frontend Service (Cloud Run)
+│   ├── dist/                    # Compiled production assets
+│   ├── node_modules/
+│   ├── public/
+│   ├── src/                     # Source code (React/TypeScript)
+│   │   └── ...
+│   ├── Dockerfile               # Frontend container configuration
+│   ├── package.json             # Node dependencies
+│   ├── vite.config.ts           # Frontend build configuration
+│   └── ...                      # (other config files)
+│
+├── ml-module/                   # 🧠 Video Processing / ML Backend Service (Cloud Run)
+│   ├── analytics/               # Logic for generating crowd stats (post-detection)
+│   ├── detection/               # Core ML model inference and object detection
+│   ├── models/                  # Stored model weights/artifacts
+│   ├── processing/              # Video decoding/pre-processing logic
+│   ├── temp/
+│   ├── config.py                # ML-specific configuration
+│   ├── Dockerfile               # ML service container configuration
+│   ├── download_model.py        # Script to fetch models during build/startup
+│   ├── main.py                  # FastAPI entry point for ML processing
+│   └── requirements.txt         # Python dependencies (incl. FastAPI, ML frameworks)
+│
+└── all-my-agents/               # 🤖 Multi-Agent Orchestration Service (Cloud Run)
+    ├── .venv/
+    ├── orchestrator_agent/      # Core multi-agent logic (Agent Development Kit equivalent)
+    │   ├── news_agent.py        # 📰 Fetches external news/context
+    │   ├── ml_analyzer_agent.py # 📊 Processes ML stats from GCS
+    │   ├── predictor_agent.py   # 🔮 Combines data for prediction
+    │   └── email_agent.py       # 📧 Drafts and sends alerts via Gemini
+    ├── .env                     # Environment variables for agents
+    ├── Dockerfile               # Agent service container configuration
+    ├── main.py                  # FastAPI/Uvicorn entry point for agents
+    └── requirements.txt         # Python dependencies (incl. Gemini SDK, agent framework)
+
 
 ## ⚙️ Setup and Deployment
 
