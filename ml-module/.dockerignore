@@ -1,0 +1,18 @@
+# Python environment files
+.venv
+venv
+__pycache__
+
+# Dependency installation files
+*.egg-info/
+.mypy_cache/
+
+# Git and temporary files
+.git
+.gitignore
+.DS_Store
+*.swp
+
+# Build artifacts (if not explicitly needed)
+dist/
+build/
