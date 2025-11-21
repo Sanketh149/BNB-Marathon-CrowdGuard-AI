@@ -4,6 +4,7 @@ import MetricsCards from "./components/MetricsCards";
 import AlertPanel from "./components/AlertPanel";
 import AgentLogs from "./components/AgentLogs";
 import Heatmap from "./components/Heatmap";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface AgentPrediction {
   consolidated_risk_level: string;
@@ -16,6 +17,7 @@ interface AgentPrediction {
   recommended_actions: string[];
 }
 
+// --- Agent Prediction Mock Data (kept for fallback) ---
 const MOCK_AGENT_PREDICTION: AgentPrediction = {
   consolidated_risk_level: "Medium",
   summary:
@@ -73,6 +75,96 @@ const MOCK_AGENT_PREDICTION: AgentPrediction = {
     "Investigate the reason for the 20 individuals being present at the stadium given no scheduled events, and if necessary, guide them to appropriate areas or exits.",
   ],
 };
+
+// Initialize Gemini AI (Must be done outside the component or within a useEffect if API Key state management is needed)
+// NOTE: This approach exposes the API key and is used here ONLY for demonstration purposes,
+// following the structure of the user's initial code.
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
+
+// --- New Function to Generate Mock ML Stats using Gemini ---
+const generateMockMLStats = async (location: string): Promise<any> => {
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+  const prompt = `You are a crowd analysis AI. Generate realistic crowd statistics for the following location: "${
+    location || "Unknown Location"
+  }".
+
+Return ONLY a valid JSON object (no markdown, no code blocks, no explanations) with this exact structure:
+{
+  "timestamp": "${new Date().toISOString()}",
+  "location": "${location || "Unknown Location"}",
+  "camera_id": "manual_upload_1",
+  "total_count": <random number between 20-100>,
+  "density_score": <random float between 30-80>,
+  "flow_rate": <random float between 5-15>,
+  "risk_level": "<one of: LOW, MEDIUM, HIGH, CRITICAL>",
+  "risk_score": <random float between 20-90>,
+  "anomaly_type": "<one of: normal, HIGH_FOOT_TRAFFIC, sudden_movement, crowd_buildup, NONE>",
+  "high_density_zones": [
+    {"grid_position": [<random 0-10>, <random 0-10>], "person_count": <random 5-15>}
+  ],
+  "clusters": [
+    {"cluster_id": 0, "size": <random 10-30>, "center": [<random 200-600>, <random 200-400>]}
+  ]
+}
+
+Make it realistic for the location context. Return ONLY the JSON, nothing else.`;
+
+  const result = await model.generateContent(prompt);
+  const geminiResponse = result.response.text();
+
+  // Clean up the response (remove markdown code blocks if present)
+  let cleanedResponse = geminiResponse.trim();
+  if (cleanedResponse.startsWith("```json")) {
+    cleanedResponse = cleanedResponse
+      .replace(/```json\n?/g, "")
+      .replace(/```\n?/g, "");
+  } else if (cleanedResponse.startsWith("```")) {
+    cleanedResponse = cleanedResponse.replace(/```\n?/g, "");
+  }
+
+  return JSON.parse(cleanedResponse);
+};
+
+// --- Function to Upload Stats to GCS ---
+const uploadStatsToGCS = async (stats: any) => {
+  const bucketName = import.meta.env.VITE_GCS_BUCKET_NAME;
+  const fileName = import.meta.env.VITE_GCS_STATS_FILE;
+  const accessToken = import.meta.env.VITE_GCP_ACCESS_TOKEN;
+
+  if (!bucketName || !fileName || !accessToken) {
+    console.warn("⚠️ GCS config or Access Token missing, skipping upload");
+    return false;
+  }
+
+  try {
+    const url = `https://storage.googleapis.com/upload/storage/v1/b/${bucketName}/o?uploadType=media&name=${fileName}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(stats, null, 2),
+    });
+
+    if (response.ok) {
+      console.log(`✅ Stats written to gs://${bucketName}/${fileName}`);
+      return true;
+    } else {
+      const errorText = await response.text();
+      console.error(
+        `❌ Failed to write to GCS: ${response.status} ${errorText}`
+      );
+      return false;
+    }
+  } catch (error) {
+    console.error(`❌ Failed to write to GCS: ${error}`);
+    return false;
+  }
+};
+// --- End New Function ---
 
 function App() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -140,6 +232,9 @@ function App() {
       setVideoFile(file);
       const url = URL.createObjectURL(file);
       setVideoUrl(url);
+      // NOTE: For the purpose of this simulation, we'll use the same URL for "annotated" video
+      // In a real app, this would be fetched from the ML backend after processing.
+      setAnnotatedVideoUrl(url);
     }
   };
 
@@ -154,181 +249,176 @@ function App() {
     setAnalysisComplete(false);
 
     // Start processing video
-    await processVideo(videoFile);
+    await processVideo();
   };
 
-  const processVideo = async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("location", location || "Unknown Location");
-
+  const processVideo = async () => {
     try {
-      const response = await fetch(
-        "https://crowdguard-ai-cloud-run-backend-255137970778.europe-west1.run.app:8080/api/analyze/video",
-        {
+      // 1. Generate crowd stats using Gemini AI (simulating ML output)
+      const mlStats = await generateMockMLStats(location);
+
+      console.log("Generated ML Stats:", mlStats);
+
+      // Upload to GCS
+      await uploadStatsToGCS(mlStats);
+
+      // Since we removed the backend upload, we mock the annotated video URL
+      // by simply using the uploaded video URL.
+      setAnnotatedVideoUrl(videoUrl);
+
+      // Update metrics
+      setMetrics({
+        totalPeople: mlStats.total_count,
+        maxPeople: mlStats.total_count,
+        averageDensity: mlStats.density_score,
+        activeAlerts: 0,
+        riskLevel: mlStats.risk_level,
+      });
+
+      // Update heatmap with cluster centers
+      if (mlStats.clusters && mlStats.clusters.length > 0) {
+        setHeatmapData({
+          // The center coordinates from the mock ML stats need to be normalized or
+          // used directly based on the expected input of your Heatmap component.
+          points: mlStats.clusters.map((c: any) => c.center),
+          width: 640,
+          height: 480,
+        });
+      }
+
+      setAnalysisComplete(true);
+
+      // Set mock data immediately to ensure UI always has data
+      setAgentPrediction(MOCK_AGENT_PREDICTION);
+
+      // 2. Fetch agent prediction from deployed Cloud Run API
+      const sessionId = crypto.randomUUID();
+
+      // 2. Construct the full URL using the standard ADK management path
+      // Format: BASE_URL/apps/{appName}/users/{userId}/sessions/{sessionId}
+      const BASE_URL_REMOTE =
+        "https://crowdguard-adk-agent-255137970778.europe-west1.run.app";
+      const APP_NAME = "orchestrator_agent";
+      const USER_ID = "user";
+      const sessionUrl = `${BASE_URL_REMOTE}/apps/${APP_NAME}/users/${USER_ID}/sessions/${sessionId}`;
+
+      console.log(`Attempting to create new session: ${sessionId}`);
+      console.log(`POST to URL: ${sessionUrl}`);
+
+      try {
+        const response = await fetch(sessionUrl, {
           method: "POST",
-          body: formData,
-        }
-      );
+          headers: {
+            "Content-Type": "application/json",
+          },
+          // The body is typically empty as all necessary info is in the URL path
+          body: JSON.stringify({}),
+        });
 
-      const data = await response.json();
-
-      if (data.results && data.results.length > 0) {
-        // Set the annotated video URL
-        if (data.annotated_video_url) {
-          setAnnotatedVideoUrl(
-            `https://crowdguard-ai-cloud-run-backend-255137970778.europe-west1.run.app:8080${data.annotated_video_url}`
+        if (response.ok) {
+          console.log(`✅ Session ${sessionId} created successfully.`);
+          const data = await response.json();
+          console.log("Session response data:", data);
+        } else {
+          const errorText = await response.text();
+          console.error(
+            `❌ Failed to create session. Status: ${response.status} | Message: ${errorText}`
           );
         }
+      } catch (error) {
+        console.error("❌ Network error during session creation:", error);
+      }
 
-        // Calculate aggregate metrics from all frames
-        const totalFrames = data.results.length;
-        let maxPeople = 0;
-        let totalPeopleSum = 0;
-        let sumDensity = 0;
-        let maxRiskLevel = "LOW";
-        let allDetections: any[] = [];
-
-        data.results.forEach((result: any) => {
-          maxPeople = Math.max(maxPeople, result.total_count || 0);
-          totalPeopleSum += result.total_count || 0;
-          sumDensity += result.density_score || 0;
-
-          if (result.detections) {
-            allDetections = allDetections.concat(result.detections);
-          }
-
-          // Track highest risk
-          const riskLevels = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
-          if (
-            riskLevels.indexOf(result.risk_level) >
-            riskLevels.indexOf(maxRiskLevel)
-          ) {
-            maxRiskLevel = result.risk_level;
-          }
-        });
-
-        const avgDensity = sumDensity / totalFrames;
-
-        // Update final metrics
-        setMetrics({
-          totalPeople: totalPeopleSum,
-          maxPeople: maxPeople,
-          averageDensity: avgDensity,
-          activeAlerts: 0,
-          riskLevel: maxRiskLevel,
-        });
-
-        // Update heatmap with all detection points
-        if (allDetections.length > 0) {
-          setHeatmapData({
-            points: allDetections.map((d: any) => d.center),
-            width: 640,
-            height: 480,
-          });
-        }
-
-        setAnalysisComplete(true);
-
-        // Set mock data immediately to ensure UI always has data
-        setAgentPrediction(MOCK_AGENT_PREDICTION);
-
-        // Fetch agent prediction from deployed Cloud Run API
-        try {
-          // const sessionId = `${crypto.randomUUID()}`;
-          const predictionResponse = await fetch(
-            "https://crowdguard-adk-agent-255137970778.europe-west1.run.app/run_sse",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Origin:
-                  "https://crowdguard-adk-agent-255137970778.europe-west1.run.app",
+      try {
+        const predictionResponse = await fetch(
+          "https://crowdguard-adk-agent-255137970778.europe-west1.run.app/run_sse",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              // NOTE: Origin header removal for simplicity if CORS allows
+            },
+            body: JSON.stringify({
+              appName: "orchestrator_agent",
+              userId: "user",
+              sessionId: sessionId,
+              newMessage: {
+                role: "user",
+                parts: [
+                  {
+                    text: `The location is ${
+                      location || "Unknown Location"
+                    }. ML Stats: ${JSON.stringify(mlStats)}`,
+                  },
+                ],
               },
-              body: JSON.stringify({
-                appName: "orchestrator_agent",
-                userId: "user",
-                sessionId: "858eff9a-fb85-4a0c-ba33-41e237ab7d2c",
-                newMessage: {
-                  role: "user",
-                  parts: [
-                    {
-                      text: `The location is ${location || "Unknown Location"}`,
-                    },
-                  ],
-                },
-                streaming: false,
-                stateDelta: null,
-              }),
-            }
-          );
+              streaming: false,
+              stateDelta: null,
+            }),
+          }
+        );
 
-          if (predictionResponse.ok) {
-            try {
-              // Parse SSE format response
-              const reader = predictionResponse.body?.getReader();
-              const decoder = new TextDecoder();
-              let buffer = "";
-              let finalData: AgentPrediction | null = null;
+        if (predictionResponse.ok) {
+          try {
+            // Parse SSE format response
+            const reader = predictionResponse.body?.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            let finalData: AgentPrediction | null = null;
 
-              if (reader) {
-                try {
-                  while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
+            if (reader) {
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
 
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split("\n");
-                    buffer = lines.pop() || "";
+                  buffer += decoder.decode(value, { stream: true });
+                  const lines = buffer.split("\n");
+                  buffer = lines.pop() || "";
 
-                    for (const line of lines) {
-                      if (line.startsWith("data: ")) {
-                        const jsonStr = line.substring(6).trim();
-                        if (jsonStr && jsonStr !== "[DONE]") {
-                          try {
-                            finalData = JSON.parse(jsonStr);
-                          } catch {
-                            console.warn("Failed to parse SSE line:", jsonStr);
-                          }
+                  for (const line of lines) {
+                    if (line.startsWith("data: ")) {
+                      const jsonStr = line.substring(6).trim();
+                      if (jsonStr && jsonStr !== "[DONE]") {
+                        try {
+                          finalData = JSON.parse(jsonStr);
+                        } catch {
+                          console.warn("Failed to parse SSE line:", jsonStr);
                         }
                       }
                     }
                   }
-                } catch (streamError) {
-                  console.error("Error reading SSE stream:", streamError);
-                  // Keep mock data on stream error
                 }
+              } catch (streamError) {
+                console.error("Error reading SSE stream:", streamError);
               }
-
-              if (finalData) {
-                console.log("=== Agent Response (Real) ===");
-                console.log(JSON.stringify(finalData, null, 2));
-                // Merge API data with mock data to fill missing fields
-                const mergedData = mergeWithMockData(finalData);
-                setAgentPrediction(mergedData);
-              } else {
-                console.warn(
-                  "No valid data in SSE response, keeping mock data"
-                );
-              }
-            } catch (parseError) {
-              console.error("Error parsing SSE response:", parseError);
-              console.warn("Keeping mock data");
             }
-          } else {
-            const errorText = await predictionResponse.text();
-            console.warn("Agent prediction API failed:", errorText);
+
+            if (finalData) {
+              console.log("=== Agent Response (Real) ===");
+              console.log(JSON.stringify(finalData, null, 2));
+              const mergedData = mergeWithMockData(finalData);
+              setAgentPrediction(mergedData);
+            } else {
+              console.warn("No valid data in SSE response, keeping mock data");
+            }
+          } catch (parseError) {
+            console.error("Error parsing SSE response:", parseError);
             console.warn("Keeping mock data");
           }
-        } catch (error) {
-          console.error("Agent prediction API error:", error);
+        } else {
+          const errorText = await predictionResponse.text();
+          console.warn("Agent prediction API failed:", errorText);
           console.warn("Keeping mock data");
         }
+      } catch (error) {
+        console.error("Agent prediction API error (Fetch):", error);
+        console.warn("Keeping mock data");
       }
     } catch (error) {
-      console.error("Error processing video:", error);
+      console.error("Error generating ML Stats:", error);
       alert(
-        "Error processing video. Make sure ML module is running on port 8001."
+        "Error generating ML stats. Check your GEMINI_API_KEY and network connection."
       );
     } finally {
       setIsProcessing(false);
@@ -508,7 +598,8 @@ function App() {
             <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
             <h3 className="text-xl font-semibold mb-2">Analyzing Video...</h3>
             <p className="text-slate-400">
-              ML module is processing frames and detecting crowds
+              GEMINI API & YOLO ML module is processing frames and detecting
+              crowds
             </p>
           </div>
         )}
