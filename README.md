@@ -1,4 +1,4 @@
-# 🛡️ CrowdGuard: AI-Powered Crowd Management and Early Warning System
+<img width="2730" height="1176" alt="Diagram 1" src="https://github.com/user-attachments/assets/756eead0-4af8-41b3-a933-d379ce6cc45b" /># 🛡️ CrowdGuard: AI-Powered Crowd Management and Early Warning System
 
 ## 🚀 Overview
 
@@ -17,6 +17,8 @@ The entire application is built on a scalable, cost-effective **Google Cloud Run
 ## 🛠️ Architecture and Components
 
 The CrowdGuard system is a fully serverless, event-driven architecture hosted on Google Cloud.
+
+<img width="2730" height="1176" alt="Diagram 1" src="https://github.com/user-attachments/assets/08d92331-3619-4580-8099-ea8959b28597" />
 
 ### Core Architecture Summary
 
