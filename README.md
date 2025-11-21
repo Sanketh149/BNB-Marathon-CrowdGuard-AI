@@ -42,7 +42,7 @@ The intelligence of CrowdGuard lies in its coordinated multi-agent system, trigg
     - **Email Agent:** Receives the **Prediction Report**. It calls the **Gemini API** to generate a clear, professional, and actionable email draft and then sends the final alert to designated emergency/authority email addresses.
 
 ## 📁 Project Structure
-
+```
 CrowdGuard/
 ├── frontend/                    # 🌐 React Frontend Service (Cloud Run)
 │   ├── dist/                    # Compiled production assets
@@ -78,7 +78,7 @@ CrowdGuard/
     ├── Dockerfile               # Agent service container configuration
     ├── main.py                  # FastAPI/Uvicorn entry point for agents
     └── requirements.txt         # Python dependencies (incl. Gemini SDK, agent framework)
-
+```
 
 ## ⚙️ Setup and Deployment
 
